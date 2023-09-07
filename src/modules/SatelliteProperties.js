@@ -1,14 +1,10 @@
-import * as Cesium from "@cesium/engine";
+import * as Cesium from "Cesium/Cesium";
 import dayjs from "dayjs";
-import { useToast } from "vue-toastification";
-
+import { ToastProgrammatic as Toast } from "buefy";
 import Orbit from "./Orbit";
-import { PushManager } from "./util/PushManager";
-import "./util/CesiumSampledPositionRawValueAccess";
+import { PushManager } from "./PushManager";
 
 import satvisIcon from "../assets/android-chrome-192x192.png";
-import { CesiumCallbackHelper } from "./util/CesiumCallbackHelper";
-// import { CesiumTransformsCache } from "./util/CesiumTransformsCache";
 
 export class SatelliteProperties {
   constructor(tle, tags = []) {
@@ -38,172 +34,120 @@ export class SatelliteProperties {
   }
 
   position(time) {
-    return this.sampledPosition.fixed.getValue(time);
+    return this.sampledPosition.getValue(time);
   }
 
-  getSampledInertialPositionsForNextOrbit(start) {
-    const end = Cesium.JulianDate.addSeconds(start, this.orbit.orbitalPeriod * 60, new Cesium.JulianDate());
-    const positions = this.sampledPosition.inertial.getRawValues(start, end);
-    // Readd the first position to the end of the array to close the loop
-    return [...positions, positions[0]];
+  positionCartographic(time) {
+    return Cesium.Cartographic.fromCartesian(this.position(time));
   }
 
-  createSampledPosition(viewer, callback) {
-    this.updateSampledPosition(viewer.clock.currentTime);
-    callback(this.sampledPosition);
-
-    const samplingRefreshRate = (this.orbit.orbitalPeriod * 60) / 4;
-    const removeCallback = CesiumCallbackHelper.createPeriodicTimeCallback(viewer, samplingRefreshRate, (time) => {
-      this.updateSampledPosition(time);
-      callback(this.sampledPosition);
-    });
-    return () => {
-      removeCallback();
-      this.sampledPosition = undefined;
+  positionCartographicDegrees(time) {
+    const cartographic = this.positionCartographic(time);
+    const cartographicDegrees = {
+      longitude: Cesium.Math.toDegrees(cartographic.longitude),
+      latitude: Cesium.Math.toDegrees(cartographic.latitude),
+      height: cartographic.height,
     };
+    return cartographicDegrees;
   }
 
-  updateSampledPosition(time) {
-    // Determine sampling interval based on sampled positions per orbit and orbital period
-    // 120 samples per orbit seems to be a good compromise between performance and accuracy
-    const samplingPointsPerOrbit = 120;
-    const orbitalPeriod = this.orbit.orbitalPeriod * 60;
-    const samplingInterval = orbitalPeriod / samplingPointsPerOrbit;
-    // console.log("updateSampledPosition", this.name, this.orbit.orbitalPeriod, samplingInterval.toFixed(2));
-
-    // Always keep half an orbit backwards and 1.5 full orbits forward in the sampled position
-    const request = new Cesium.TimeInterval({
-      start: Cesium.JulianDate.addSeconds(time, -orbitalPeriod / 2, new Cesium.JulianDate()),
-      stop: Cesium.JulianDate.addSeconds(time, orbitalPeriod * 1.5, new Cesium.JulianDate()),
-    });
-
-    // (Re)create sampled position if it does not exist or if it does not contain the current time
-    if (!this.sampledPosition || !Cesium.TimeInterval.contains(this.sampledPosition.interval, time)) {
-      this.initSampledPosition(request.start);
-    }
-
-    // Determine which parts of the requested interval are missing
-    const intersect = Cesium.TimeInterval.intersect(this.sampledPosition.interval, request);
-    const missingSecondsEnd = Cesium.JulianDate.secondsDifference(request.stop, intersect.stop);
-    const missingSecondsStart = Cesium.JulianDate.secondsDifference(intersect.start, request.start);
-    // console.log(`updateSampledPosition ${this.name}`,
-    //   `Missing ${missingSecondsStart.toFixed(2)}s ${missingSecondsEnd.toFixed(2)}s`,
-    //   `Request ${Cesium.TimeInterval.toIso8601(request, 0)}`,
-    //   `Current ${Cesium.TimeInterval.toIso8601(this.sampledPosition.interval, 0)}`,
-    //   `Intersect ${Cesium.TimeInterval.toIso8601(intersect, 0)}`,
-    // );
-
-    if (missingSecondsStart > 0) {
-      const samplingStart = Cesium.JulianDate.addSeconds(intersect.start, -missingSecondsStart, new Cesium.JulianDate());
-      const samplingStop = this.sampledPosition.interval.start;
-      this.addSamples(samplingStart, samplingStop, samplingInterval);
-    }
-    if (missingSecondsEnd > 0) {
-      const samplingStart = this.sampledPosition.interval.stop;
-      const samplingStop = Cesium.JulianDate.addSeconds(intersect.stop, missingSecondsEnd, new Cesium.JulianDate());
-      this.addSamples(samplingStart, samplingStop, samplingInterval);
-    }
-
-    // Remove no longer needed samples
-    const removeBefore = new Cesium.TimeInterval({
-      start: Cesium.JulianDate.fromIso8601("1957"),
-      stop: request.start,
-      isStartIncluded: false,
-      isStopIncluded: false,
-    });
-    const removeAfter = new Cesium.TimeInterval({
-      start: request.stop,
-      stop: Cesium.JulianDate.fromIso8601("2100"),
-      isStartIncluded: false,
-      isStopIncluded: false,
-    });
-    this.sampledPosition.fixed.removeSamples(removeBefore);
-    this.sampledPosition.inertial.removeSamples(removeBefore);
-    this.sampledPosition.fixed.removeSamples(removeAfter);
-    this.sampledPosition.inertial.removeSamples(removeAfter);
-
-    this.sampledPosition.interval = request;
+  get height() {
+    return this.cartographic.height;
   }
 
-  initSampledPosition(currentTime) {
-    this.sampledPosition = {};
-    this.sampledPosition.interval = new Cesium.TimeInterval({
-      start: currentTime,
-      stop: currentTime,
-      isStartIncluded: false,
-      isStopIncluded: false,
-    });
-    this.sampledPosition.fixed = new Cesium.SampledPositionProperty();
-    this.sampledPosition.fixed.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
-    this.sampledPosition.fixed.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
-    this.sampledPosition.fixed.setInterpolationOptions({
-      interpolationDegree: 5,
-      interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
-    });
-    this.sampledPosition.inertial = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
-    this.sampledPosition.inertial.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
-    this.sampledPosition.inertial.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
-    this.sampledPosition.inertial.setInterpolationOptions({
-      interpolationDegree: 5,
-      interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
-    });
-    this.sampledPosition.valid = true;
-  }
-
-  addSamples(start, stop, samplingInterval) {
-    const times = [];
-    const positionsFixed = [];
-    const positionsInertial = [];
-    for (let time = start; Cesium.JulianDate.compare(stop, time) >= 0; time = Cesium.JulianDate.addSeconds(time, samplingInterval, new Cesium.JulianDate())) {
-      const { positionFixed, positionInertial } = this.computePosition(time);
-      times.push(time);
-      positionsFixed.push(positionFixed);
-      positionsInertial.push(positionInertial);
+  computePositionCartesian3(julianDate) {
+    // Check if Position for current timestap is already computed
+    if (typeof this.lastPosition !== "undefined" && Cesium.JulianDate.compare(this.lastDate, julianDate) === 0) {
+      return this.lastPosition;
     }
-    // Add all samples at once as adding a sorted array avoids searching for the correct position every time
-    this.sampledPosition.fixed.addSamples(times, positionsFixed);
-    this.sampledPosition.inertial.addSamples(times, positionsInertial);
+
+    this.lastDate = julianDate;
+    const { longitude, latitude, height } = this.orbit.positionGeodetic(Cesium.JulianDate.toDate(julianDate));
+    this.lastPosition = Cesium.Cartesian3.fromRadians(longitude, latitude, height);
+    // console.log(`TS ${julianDate} POS ${this.lastPosition}`);
+
+    return this.lastPosition;
   }
 
-  computePositionInertialTEME(time) {
+  computePositionCartographicDegrees(julianDate) {
+    const { longitude, latitude, height, velocity } = this.orbit.positionGeodeticWithVelocity(Cesium.JulianDate.toDate(julianDate));
+    const cartographicDegrees = {
+      longitude: Cesium.Math.toDegrees(longitude),
+      latitude: Cesium.Math.toDegrees(latitude),
+      height,
+      velocity,
+    };
+    return cartographicDegrees;
+  }
+
+  positionInertial(time, constprop = false) {
     const eci = this.orbit.positionECI(Cesium.JulianDate.toDate(time));
-    if (this.orbit.error) {
-      this.sampledPosition.valid = false;
-      return Cesium.Cartesian3.ZERO;
+    const position = new Cesium.Cartesian3(eci.x * 1000, eci.y * 1000, eci.z * 1000);
+    if (constprop) {
+      return new Cesium.ConstantPositionProperty(position, Cesium.ReferenceFrame.INERTIAL);
     }
-    return new Cesium.Cartesian3(eci.x * 1000, eci.y * 1000, eci.z * 1000);
+    return position;
   }
 
-  computePosition(timestamp) {
-    const positionInertialTEME = this.computePositionInertialTEME(timestamp);
+  createSampledPosition(clock, callback) {
+    let lastUpdated;
+    lastUpdated = this.updateSampledPosition(clock.currentTime);
+    callback(this.sampledPosition);
+    clock.onTick.addEventListener((onTickClock) => {
+      const dt = Math.abs(Cesium.JulianDate.secondsDifference(onTickClock.currentTime, lastUpdated));
+      if (dt >= 60 * 15) {
+        lastUpdated = this.updateSampledPosition(onTickClock.currentTime);
+        callback(this.sampledPosition);
+      }
+    });
+  }
 
-    const temeToFixed = Cesium.Transforms.computeTemeToPseudoFixedMatrix(timestamp);
-    // const temeToFixed = CesiumTransformsCache.getTemeToPseudoFixedMatrix(timestamp);
-    if (!Cesium.defined(temeToFixed)) {
-      console.error("Reference frame transformation data failed to load");
+  updateSampledPosition(julianDate, samplesFwd = 240, samplesBwd = 120, interval = 30) {
+    const sampledPosition = new Cesium.SampledPositionProperty();
+    sampledPosition.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+    sampledPosition.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+    sampledPosition.setInterpolationOptions({
+      interpolationDegree: 5,
+      interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
+    });
+
+    const sampledPositionInertial = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
+    sampledPositionInertial.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+    sampledPositionInertial.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+    sampledPositionInertial.setInterpolationOptions({
+      interpolationDegree: 5,
+      interpolationAlgorithm: Cesium.LagrangePolynomialApproximation,
+    });
+
+    // Spread sampledPosition updates
+    const randomOffset = Math.random() * 60 * 15;
+    const reference = Cesium.JulianDate.addSeconds(julianDate, randomOffset, new Cesium.JulianDate());
+
+    const startTime = -samplesBwd * interval;
+    const stopTime = samplesFwd * interval;
+    for (let time = startTime; time <= stopTime; time += interval) {
+      const timestamp = Cesium.JulianDate.addSeconds(reference, time, new Cesium.JulianDate());
+      const position = this.computePositionCartesian3(timestamp);
+      sampledPosition.addSample(timestamp, position);
+
+      const positionInertial = this.positionInertial(timestamp);
+      sampledPositionInertial.addSample(timestamp, positionInertial);
+
+      // Show computed sampled position
+      // viewer.entities.add({
+      //  position : position,
+      //  point : {
+      //    pixelSize : 8,
+      //    color : Cesium.Color.TRANSPARENT,
+      //    outlineColor : Cesium.Color.YELLOW,
+      //    outlineWidth : 3
+      //  }
+      // });
     }
-    const positionFixed = Cesium.Matrix3.multiplyByVector(temeToFixed, positionInertialTEME, new Cesium.Cartesian3());
 
-    const fixedToIcrf = Cesium.Transforms.computeFixedToIcrfMatrix(timestamp);
-    // const fixedToIcrf = CesiumTransformsCache.getFixedToIcrfMatrix(timestamp);
-    if (!Cesium.defined(fixedToIcrf)) {
-      console.error("Reference frame transformation data failed to load");
-    }
-    const positionInertialICRF = Cesium.Matrix3.multiplyByVector(fixedToIcrf, positionFixed, new Cesium.Cartesian3());
-
-    // Show computed sampled position
-    // window.cc.viewer.entities.add({
-    //  //position: positionFixed,
-    //  position: new Cesium.ConstantPositionProperty(positionInertialICRF, Cesium.ReferenceFrame.INERTIAL),
-    //  point: {
-    //    pixelSize: 8,
-    //    color: Cesium.Color.TRANSPARENT,
-    //    outlineColor: Cesium.Color.YELLOW,
-    //    outlineWidth: 2,
-    //  }
-    // });
-
-    return { positionFixed, positionInertial: positionInertialICRF };
+    this.sampledPosition = sampledPosition;
+    this.sampledPositionInertial = sampledPositionInertial;
+    return reference;
   }
 
   groundTrack(julianDate, samplesFwd = 0, samplesBwd = 120, interval = 30) {
@@ -213,7 +157,7 @@ export class SatelliteProperties {
     const stopTime = samplesFwd * interval;
     for (let time = startTime; time <= stopTime; time += interval) {
       const timestamp = Cesium.JulianDate.addSeconds(julianDate, time, new Cesium.JulianDate());
-      const cartographic = Cesium.Cartographic.fromCartesian(this.position(timestamp));
+      const cartographic = this.positionCartographic(timestamp);
       const groudPosition = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, 1000);
       groundTrack.push(groudPosition);
     }
@@ -272,15 +216,23 @@ export class SatelliteProperties {
   }
 
   notifyPasses(aheadMin = 5) {
-    const toast = useToast();
-
     if (!this.groundStationAvailable) {
-      toast.warning("Ground station required to notify for passes");
+      Toast.open({
+        message: "Ground station required to notify for passes",
+        type: "is-warning",
+        position: "is-bottom",
+        duration: 4000,
+      });
       return;
     }
     const passes = this.orbit.computePassesElevation(this.groundStationPosition);
     if (!passes) {
-      toast.info(`No passes for ${this.name}`);
+      Toast.open({
+        message: `No passes for ${this.name}`,
+        type: "is-warning",
+        position: "is-bottom",
+        duration: 4000,
+      });
       return;
     }
 
@@ -290,6 +242,11 @@ export class SatelliteProperties {
       this.pm.notifyAtDate(start, `${pass.name} pass starting now`);
       // this.pm.notifyAtDate(dayjs().add(5, "second"), `${pass.name} test pass in ${aheadMin} minutes`);
     });
-    toast.success(`Notifying for ${passes.length} passes of ${this.name}`);
+    Toast.open({
+      message: `Notifying for passes of ${this.name}`,
+      type: "is-success",
+      position: "is-bottom",
+      duration: 4000,
+    });
   }
 }

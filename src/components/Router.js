@@ -1,12 +1,14 @@
-import { createRouter, createWebHistory } from "vue-router";
+import Vue from "vue";
+import Router from "vue-router";
+import Cesium from "./Cesium.vue";
 
-import Satvis from "./Satvis.vue";
+Vue.use(Router);
 
-export default createRouter({
-  history: createWebHistory(document.location.pathname.match(".*/")[0]),
+export default new Router({
+  mode: "history",
   routes: [
-    { path: "/", component: Satvis },
-    { path: "/move.html", component: Satvis },
-    { path: "/ot.html", component: Satvis },
+    { path: "/", component: Cesium },
+    { path: "/move.html", component: Cesium },
+    { path: "/ot.html", component: Cesium },
   ],
 });
