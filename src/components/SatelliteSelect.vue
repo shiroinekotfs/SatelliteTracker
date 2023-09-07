@@ -1,81 +1,119 @@
 <template>
-  <div class="wrapper">
-    <multi-select
-      v-model="values"
-      search
-      history-button
-      :options="options"
-      :select-options="data"
-      :btn-label="btnLabel"
-    />
-    <!--
-    <button
-      class="button"
-      @click="update"
-    >
-      <span class="icon is-small">
-        <i class="fas fa-redo" />
-      </span>
-    </button>
-    -->
+  <div class="satellite-select">
+    <div class="toolbarTitle">
+      Enabled satellite groups
+    </div>
+    <div class="toolbarContent">
+      <vue-multiselect
+        v-model="enabledTags"
+        :options="availableTags"
+        :multiple="true"
+        :searchable="false"
+        placeholder="0 satellite groups selected"
+      />
+    </div>
+    <div class="toolbarTitle">
+      Enabled satellites
+    </div>
+    <div class="toolbarContent">
+      <vue-multiselect
+        v-model="allEnabledSatellites"
+        :options="availableSatellites"
+        :multiple="true"
+        group-values="sats"
+        group-label="tag"
+        :group-select="true"
+        placeholder="Type to search"
+        :close-on-select="false"
+        :limit="0"
+        :limit-text="count => `${count} satellite${ count > 1 ? 's' : '' } selected`"
+        :options-limit="100000"
+      >
+        <template #noResult>
+          No matching satellites
+        </template>
+      </vue-multiselect>
+    </div>
   </div>
 </template>
 
 <script>
-/* global cc */
-import multiSelect from "vue-multi-select";
-import "vue-multi-select/dist/lib/vue-multi-select.css";
+import VueMultiselect from "vue-multiselect";
+import { mapWritableState } from "pinia";
+
+import { useSatStore } from "../stores/sat";
 
 export default {
   components: {
-    multiSelect,
+    VueMultiselect,
   },
   data() {
     return {
-      btnLabel: (values) => (values.length > 0 ? values[0] : "Select..."),
-      values: [],
-      data: cc.sats.satlist,
-      options: {
-        groups: true,
-      },
     };
   },
-  watch: {
-    values(newSat, oldSat) {
-      if (newSat.every((e) => oldSat.includes(e)) && oldSat.every((e) => newSat.includes(e))) {
-        return;
+  computed: {
+    ...mapWritableState(useSatStore, [
+      "availableSatellitesByTag",
+      "availableTags",
+      "enabledSatellites",
+      "enabledTags",
+      "trackedSatellite",
+    ]),
+    availableSatellites() {
+      let satlist = Object.keys(this.availableSatellitesByTag).map((tag) => ({
+        tag,
+        sats: this.availableSatellitesByTag[tag],
+      }));
+      if (satlist.length === 0) {
+        satlist = [];
       }
-      if (newSat.length === 1) {
-        [cc.sats.trackedSatellite] = newSat;
-        if (this.$route.query.sat !== newSat[0]) {
-          this.$router.push({ query: { ...this.$route.query, sat: newSat[0] } });
-        }
-      } else if (oldSat.length === 1) {
-        cc.sats.trackedSatellite = "";
-        const query = { ...this.$route.query };
-        delete query.sat;
-        this.$router.replace({ query });
-      }
+      return satlist;
+    },
+    satellitesEnabledByTag() {
+      return this.getSatellitesFromTags(this.enabledTags);
+    },
+    allEnabledSatellites: {
+      get() {
+        return this.satellitesEnabledByTag.concat(this.enabledSatellites ?? []);
+      },
+      set(sats) {
+        const enabledTags = this.availableTags.filter((tag) => !this.availableSatellitesByTag[tag].some((sat) => !sats.includes(sat)));
+        const satellitesInEnabledTags = this.getSatellitesFromTags(enabledTags);
+        const enabledSatellites = sats.filter((sat) => !satellitesInEnabledTags.includes(sat));
+        cc.sats.enabledSatellites = enabledSatellites;
+        cc.sats.enabledTags = enabledTags;
+      },
     },
   },
-  mounted() {
-    if (this.$route.query.sat) {
-      cc.sats.trackedSatellite = this.$route.query.sat;
-    }
-    this.$root.$on("updateTracked", this.update);
-  },
-  beforeDestroy() {
-    this.$root.$off("updateTracked", this.update);
+  watch: {
+    enabledSatellites(sats) {
+      cc.sats.enabledSatellites = sats;
+    },
+    enabledTags(tags) {
+      cc.sats.enabledTags = tags;
+    },
+    trackedSatellite(satellite) {
+      cc.sats.trackedSatellite = satellite;
+    },
   },
   methods: {
-    update() {
-      this.data = cc.sats.satlist;
-      if (cc.sats.trackedSatellite) {
-        this.values = [cc.sats.trackedSatellite];
-      } else {
-        this.values = [];
-      }
+    getSatellitesFromTags(taglist) {
+      return taglist.map((tag) => this.availableSatellitesByTag[tag] || []).flat();
     },
   },
 };
 </script>
+
+<style scoped>
+.satellite-select {
+  width: 300px;
+}
+</style>
+
+<style>
+@import "vue-multiselect/dist/vue-multiselect.css";
+
+.multiselect__single {
+  display: none;
+}
+</style>
