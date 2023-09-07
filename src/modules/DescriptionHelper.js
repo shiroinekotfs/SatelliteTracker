@@ -1,10 +1,11 @@
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+
 dayjs.extend(relativeTime);
 
 export class DescriptionHelper {
   static renderDescription(time, name, position, passes, isGroundStation, tle) {
-    let description = `
+    const description = `
       <div class="ib">
         <h3>Position</h3>
         <table class="ibt">
@@ -13,7 +14,8 @@ export class DescriptionHelper {
               <th>Name</th>
               <th>Latitude</th>
               <th>Longitude</th>
-              <th>${isGroundStation ? "Elevation" : "Altitude"}</th>
+              ${isGroundStation ? "" : "<th>Altitude</th>"}
+              ${isGroundStation ? "" : "<th>Velocity</th>"}
             </tr>
           </thead>
           <tbody>
@@ -21,7 +23,8 @@ export class DescriptionHelper {
               <td>${name}</td>
               <td>${position.latitude.toFixed(2)}&deg</td>
               <td>${position.longitude.toFixed(2)}&deg</td>
-              <td>${(position.height / 1000).toFixed(2)} km</td>
+              ${isGroundStation ? "" : `<td>${(position.height / 1000).toFixed(2)} km</td>`}
+              ${isGroundStation ? "" : `<td>${position.velocity.toFixed(2)} km/s</td>`}
             </tr>
           </tbody>
         </table>
@@ -33,7 +36,7 @@ export class DescriptionHelper {
   }
 
   static renderPasses(passes, time, showPassName) {
-    if (passes.length == 0) {
+    if (passes.length === 0) {
       const html = `
         <h3>Passes</h3>
         <div class="ib-text">No ground station set</div>
@@ -42,9 +45,7 @@ export class DescriptionHelper {
     }
 
     const start = dayjs(time);
-    const upcomingPassIdx = passes.findIndex(pass => {
-      return dayjs(pass.end).isAfter(start);
-    });
+    const upcomingPassIdx = passes.findIndex((pass) => dayjs(pass.end).isAfter(start));
     if (upcomingPassIdx < 0) {
       return "";
     }
@@ -65,7 +66,7 @@ export class DescriptionHelper {
           </tr>
         </thead>
         <tbody>
-          ${upcomingPasses.map(pass => this.renderPass(start, pass, showPassName)).join("")}
+          ${upcomingPasses.map((pass) => this.renderPass(start, pass, showPassName)).join("")}
         </tbody>
       </table>
     `;
@@ -80,7 +81,7 @@ export class DescriptionHelper {
     if (dayjs(pass.end).diff(time) < 0) {
       countdown = "PREVIOUS";
     } else if (dayjs(pass.start).diff(time) > 0) {
-      countdown = `${pad2(dayjs(pass.start).diff(time, "days"))}:${pad2(dayjs(pass.start).diff(time, "hours")%24)}:${pad2(dayjs(pass.start).diff(time, "minutes")%60)}:${pad2(dayjs(pass.start).diff(time, "seconds")%60)}`;
+      countdown = `${pad2(dayjs(pass.start).diff(time, "days"))}:${pad2(dayjs(pass.start).diff(time, "hours") % 24)}:${pad2(dayjs(pass.start).diff(time, "minutes") % 60)}:${pad2(dayjs(pass.start).diff(time, "seconds") % 60)}`;
     }
     const htmlName = showPassName ? `<td>${pass.name}</td>\n` : "";
     const html = `
@@ -99,7 +100,7 @@ export class DescriptionHelper {
   static renderTLE(tle) {
     const html = `
       <h3>TLE</h3>
-      <div class="ib-code"><code>${tle.slice(1,3).join("\n")}</code></div>`;
+      <div class="ib-code"><code>${tle.slice(1, 3).join("\n")}</code></div>`;
     return html;
   }
 }
