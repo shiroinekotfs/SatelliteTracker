@@ -1,7 +1,7 @@
 {
   "name": "SatelliteTracker",
-  "version": "1.0.0",
-  "description": "Satellite orbit visualization with CesiumJS",
+  "version": "1.0.0a1",
+  "description": "Satellite Tracker - visualization and pass prediction.",
   "scripts": {
     "build": "webpack --config webpack/webpack.prod.js",
     "build:dev": "webpack --config webpack/webpack.config.js",
@@ -15,7 +15,8 @@
     "start": "webpack serve --progress --config webpack/webpack.config.js",
     "start:anyhost": "webpack serve --progress --config webpack/webpack.config.js --host 0.0.0.0",
     "update-tle": "node data/tle/update-tle.js",
-    "update-custom-data": "npm run update-tle && bash data/custom/update-custom-data.sh"
+    "update-custom-data": "npm run update-tle && bash data/custom/update-custom-data.sh",
+    "update-all-packages": "npm install"
   },
   "author": "Florian Mauracher",
   "private": true,
