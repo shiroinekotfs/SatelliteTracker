@@ -177,9 +177,6 @@ module.exports = {
         /site\.webmanifest$/,
       ],
       exclude: [
-        /cesium\/ThirdParty\//,
-        /cesium\/Widgets\//,
-        /cesium\/Workers\//,
       ],
     }),
   ],
