@@ -1,12 +1,12 @@
 import { createRouter, createWebHistory } from "vue-router";
 
-import Satvis from "./Satvis.vue";
+import SatelliteTracker from "./SatelliteTracker.vue";
 
 export default createRouter({
   history: createWebHistory(document.location.pathname.match(".*/")[0]),
   routes: [
-    { path: "/", component: Satvis },
-    { path: "/move.html", component: Satvis },
-    { path: "/ot.html", component: Satvis },
+    { path: "/", component: SatelliteTracker },
+    { path: "/move.html", component: SatelliteTracker },
+    { path: "/ot.html", component: SatelliteTracker },
   ],
 });
