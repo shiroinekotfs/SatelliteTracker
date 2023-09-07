@@ -14,9 +14,9 @@ import router from "./components/Router";
 import piniaUrlSync from "./modules/util/pinia-plugin-url-sync";
 import { CesiumController } from "./modules/CesiumController";
 
-function SatelliteTrackerSetup(customConfig = {}) {
+function satvisSetup(customConfig = {}) {
   // Enable sentry for production version
-  if (window.location.href.includes("SatelliteTracker.space")) {
+  if (window.location.href.includes("satvis.space")) {
     Sentry.init({ dsn: "https://d17adce0cef2411aa49e3fc6d6ec0aa7@o294643.ingest.sentry.io/1541793" });
   }
 
@@ -53,4 +53,4 @@ function SatelliteTrackerSetup(customConfig = {}) {
   return { app, cc };
 }
 
-export default SatelliteTrackerSetup;
+export default satvisSetup;

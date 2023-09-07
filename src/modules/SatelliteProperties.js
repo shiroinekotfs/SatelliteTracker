@@ -6,7 +6,7 @@ import Orbit from "./Orbit";
 import { PushManager } from "./util/PushManager";
 import "./util/CesiumSampledPositionRawValueAccess";
 
-import SatelliteTrackerIcon from "../assets/android-chrome-192x192.png";
+import satvisIcon from "../assets/android-chrome-192x192.png";
 import { CesiumCallbackHelper } from "./util/CesiumCallbackHelper";
 // import { CesiumTransformsCache } from "./util/CesiumTransformsCache";
 
@@ -25,7 +25,7 @@ export class SatelliteProperties {
     this.passInterval = undefined;
     this.passIntervals = new Cesium.TimeIntervalCollection();
     this.pm = new PushManager({
-      icon: SatelliteTrackerIcon,
+      icon: satvisIcon,
     });
   }
 

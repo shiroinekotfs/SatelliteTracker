@@ -1,5 +1,5 @@
 {
-  "name": "SatelliteTracker",
+  "name": "SatVis",
   "version": "1.0.0",
   "description": "Satellite orbit visualization with CesiumJS",
   "scripts": {

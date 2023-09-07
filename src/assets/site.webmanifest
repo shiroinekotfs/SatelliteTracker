@@ -1,6 +1,6 @@
 {
     "name": "Satellite Orbit Visualization",
-    "short_name": "SatelliteTracker",
+    "short_name": "SatVis",
     "icons": [
         {
             "src": "/android-chrome-192x192.png",

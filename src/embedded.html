@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>SatelliteTracker Embedded Example</title>
+    <title>Satvis Embedded Example</title>
     <style>
       body {
         width: 100%;
@@ -20,17 +20,17 @@
   </head>
   <body>
     <div id="title">
-      <h1>SatelliteTracker Embedded Example</h1>
+      <h1>Satvis Embedded Example</h1>
     </div>
-    <div id="SatelliteTracker-content">
+    <div id="satvis-content">
       <style>
-        #SatelliteTracker-content {
+        #satvis-content {
           display: block;
           margin: auto;
           text-align: center;
           width: 80%;
         }
-        #SatelliteTracker-button {
+        #satvis-button {
           background-color: #555555;
           border: none;
           border-radius: 5px;
@@ -40,7 +40,7 @@
           font-size: 16px;
           cursor: pointer;
         }
-        #SatelliteTracker-frame {
+        #satvis-frame {
           display: none;
           margin: auto;
           width: 100%;
@@ -50,13 +50,13 @@
           border-radius: 5px;
         }
       </style>
-      <button id="SatelliteTracker-button" onclick='let frame = document.getElementById("SatelliteTracker-frame"); frame.src="move.html?elements=Point,Label,Orbit&layers=OfflineHighres&gs=48.1770,11.7476&tags=MOVE&sat=MOVE-II"; frame.style.display = "block";'>
+      <button id="satvis-button" onclick='let frame = document.getElementById("satvis-frame"); frame.src="move.html?elements=Point,Label,Orbit&layers=OfflineHighres&gs=48.1770,11.7476&tags=MOVE&sat=MOVE-II"; frame.style.display = "block";'>
         Current satellite position
       </button>
-      <button id="SatelliteTracker-button" onclick='let frame = document.getElementById("SatelliteTracker-frame"); frame.src="ot.html?bg=false"; frame.style.display = "block";'>
+      <button id="satvis-button" onclick='let frame = document.getElementById("satvis-frame"); frame.src="ot.html?bg=false"; frame.style.display = "block";'>
         Transparent background
       </button>
-      <iframe id="SatelliteTracker-frame" allowtransparency="true"></iframe>
+      <iframe id="satvis-frame" allowtransparency="true"></iframe>
       <br />
       Simple example to embed the sativs site on other pages.
     </div>
