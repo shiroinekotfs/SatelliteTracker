@@ -1,6 +1,6 @@
-import satvisSetup from "./app";
+import SatelliteTrackerSetup from "./app";
 
-const { cc } = satvisSetup({
+const { cc } = SatelliteTrackerSetup({
   sat: {
     enabledTags: ["MOVE"],
   },

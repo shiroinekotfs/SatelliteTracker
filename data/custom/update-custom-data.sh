@@ -2,7 +2,7 @@
 set -u
 cd "${0%/*}"
 
-# Script to collect custom data for the satvis build
+# Script to collect custom data for the SatelliteTracker build
 # Data located within the custom/output folder will be copied to data during the webpack build
 DATA_DIR="$(readlink -f ../)"
 OUT_DIR="$(readlink -f dist)"

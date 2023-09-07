@@ -182,7 +182,7 @@
     </div>
     <div id="toolbarRight">
       <o-tooltip v-if="showUI" label="Github" :triggers="tooltipTriggers" position="left">
-        <a class="cesium-button cesium-toolbar-button" href="https://github.com/Flowm/satvis/" target="_blank" rel="noopener">
+        <a class="cesium-button cesium-toolbar-button" href="https://github.com/takinekotfs/SatelliteTracker/" target="_blank" rel="noopener">
           <font-awesome-icon icon="fab fa-github" />
         </a>
       </o-tooltip>
