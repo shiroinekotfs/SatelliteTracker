@@ -1,4 +1,4 @@
-# [satvis.space](https://satvis.space)
+# [satvis.space](https://satvis.space) 
 
 ![Node CI](https://github.com/Flowm/satvis/workflows/Node%20CI/badge.svg)
 
@@ -40,7 +40,7 @@ npm clean-install
 - `npm run serve` to build the application and serve with static webserver
 - `npm run update-tle` to retrieve the latest satellite TLEs from NORAD
 
-## 
+## License
 
 This project is licensed under the MIT License - see `LICENSE` file for details.
 
