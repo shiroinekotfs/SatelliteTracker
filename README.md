@@ -1,6 +1,6 @@
-# [satvis.space](https://satvis.space) 
+# [SatelliteTracker.space](https://SatelliteTracker.space) 
 
-![Node CI](https://github.com/Flowm/satvis/workflows/Node%20CI/badge.svg)
+![Node CI](https://github.com/Flowm/SatelliteTracker/workflows/Node%20CI/badge.svg)
 
 Satellite orbit visualization and pass prediction.
 
