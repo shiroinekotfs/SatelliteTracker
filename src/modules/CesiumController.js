@@ -1,20 +1,26 @@
-import * as Cesium from "Cesium/Cesium";
+import * as Cesium from "@cesium/engine";
+import { Viewer } from "@cesium/widgets";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import * as Sentry from "@sentry/browser";
-import { DeviceDetect } from "./util/DeviceDetect";
-import { SatelliteManager } from "./SatelliteManager";
+import { icon } from "@fortawesome/fontawesome-svg-core";
+import { faBell, faInfo } from "@fortawesome/free-solid-svg-icons";
 
+import { DeviceDetect } from "./util/DeviceDetect";
+import { CesiumPerformanceStats } from "./util/CesiumPerformanceStats";
+import { SatelliteManager } from "./SatelliteManager";
+import { useCesiumStore } from "../stores/cesium";
 import infoBoxCss from "../css/infobox.ecss";
 
 dayjs.extend(utc);
 
 export class CesiumController {
   constructor() {
+    this.initConstants();
+    this.preloadReferenceFrameData();
     this.minimalUI = DeviceDetect.inIframe() || DeviceDetect.isIos();
-    this.minimalUIAtStartup = DeviceDetect.inIframe();
 
-    this.viewer = new Cesium.Viewer("cesiumContainer", {
+    this.viewer = new Viewer("cesiumContainer", {
       animation: !this.minimalUI,
       baseLayerPicker: false,
       fullscreenButton: !this.minimalUI,
@@ -22,7 +28,7 @@ export class CesiumController {
       geocoder: false,
       homeButton: false,
       sceneModePicker: false,
-      imageryProvider: this.createImageryProvider().provider,
+      baseLayer: this.createImageryLayer("OfflineHighres"),
       navigationHelpButton: false,
       navigationInstructionsInitiallyVisible: false,
       selectionIndicator: false,
@@ -41,18 +47,22 @@ export class CesiumController {
     this.viewer.scene.highDynamicRange = true;
     this.viewer.scene.maximumRenderTimeChange = 1 / 30;
     this.viewer.scene.requestRenderMode = true;
+
+    // Cesium Performance Tools
     // this.viewer.scene.debugShowFramesPerSecond = true;
-    // this.viewer.extend(Cesium.viewerCesiumInspectorMixin);
+    // this.FrameRateMonitor = Cesium.FrameRateMonitor.fromScene(this.viewer.scene);
+    // this.viewer.scene.postRender.addEventListener((scene) => {
+    //   console.log(this.FrameRateMonitor.lastFramesPerSecond)
+    // });
+    // this.enablePerformanceLogger(true);
 
     // Export CesiumController for debugger
     window.cc = this;
 
     // CesiumController config
-    this.imageryProviders = ["Offline", "OfflineHighres", "ArcGis", "OSM", "Tiles", "BlackMarble", "GOES-IR", "Nextrad", "Meteocool"];
     this.terrainProviders = ["None", "Maptiler"];
     this.sceneModes = ["3D", "2D", "Columbus"];
     this.cameraModes = ["Fixed", "Inertial"];
-    this.groundStationPicker = { enabled: false };
 
     this.createInputHandler();
     this.addErrorHandler();
@@ -63,13 +73,145 @@ export class CesiumController {
 
     // Add privacy policy to credits when not running in iframe
     if (!DeviceDetect.inIframe()) {
-      this.viewer.scene.frameState.creditDisplay.addDefaultCredit(new Cesium.Credit("<a href=\"/privacy.html\" target=\"_blank\"><u>Privacy</u></a>"));
+      this.viewer.creditDisplay.addStaticCredit(new Cesium.Credit(`<a href="/privacy.html" target="_blank"><u>Privacy</u></a>`, true));
     }
+    this.viewer.creditDisplay.addStaticCredit(new Cesium.Credit(`Satellite TLE data provided by <a href="https://celestrak.org/NORAD/elements/" target="_blank"><u>Celestrak</u></a>`));
 
     // Fix Cesium logo in minimal ui mode
     if (this.minimalUI) {
       setTimeout(() => { this.fixLogo(); }, 2500);
     }
+
+    this.activeLayers = [];
+  }
+
+  initConstants() {
+    this.imageryProviders = {
+      Offline: {
+        create: () => Cesium.TileMapServiceImageryProvider.fromUrl(Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII")),
+        alpha: 1,
+        base: true,
+      },
+      OfflineHighres: {
+        create: () => Cesium.TileMapServiceImageryProvider.fromUrl("data/cesium-assets/imagery/NaturalEarthII", {
+          maximumLevel: 5,
+          credit: "Imagery courtesy Natural Earth",
+        }),
+        alpha: 1,
+        base: true,
+      },
+      ArcGis: {
+        create: () => Cesium.ArcGisMapServerImageryProvider.fromUrl("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"),
+        alpha: 1,
+        base: true,
+      },
+      OSM: {
+        create: () => new Cesium.OpenStreetMapImageryProvider({
+          url: "https://a.tile.openstreetmap.org/",
+        }),
+        alpha: 1,
+        base: true,
+      },
+      BlackMarble: {
+        create: () => new Cesium.WebMapServiceImageryProvider({
+          url: "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
+          layers: "VIIRS_Black_Marble",
+          style: "default",
+          tileMatrixSetID: "250m",
+          format: "image/png",
+          tileWidth: 512,
+          tileHeight: 512,
+          credit: "NASA Global Imagery Browse Services for EOSDIS",
+        }),
+        alpha: 1,
+        base: true,
+      },
+      Tiles: {
+        create: () => new Cesium.TileCoordinatesImageryProvider(),
+        alpha: 1,
+        base: false,
+      },
+      "GOES-IR": {
+        create: () => new Cesium.WebMapServiceImageryProvider({
+          url: "https://mesonet.agron.iastate.edu/cgi-bin/wms/goes/conus_ir.cgi?",
+          layers: "goes_conus_ir",
+          credit: "Infrared data courtesy Iowa Environmental Mesonet",
+          parameters: {
+            transparent: "true",
+            format: "image/png",
+          },
+        }),
+        alpha: 0.5,
+        base: false,
+      },
+      Nextrad: {
+        create: () => new Cesium.WebMapServiceImageryProvider({
+          url: "https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi?",
+          layers: "nexrad-n0r",
+          credit: "US Radar data courtesy Iowa Environmental Mesonet",
+          parameters: {
+            transparent: "true",
+            format: "image/png",
+          },
+        }),
+        alpha: 0.5,
+        base: false,
+      },
+    };
+  }
+
+  preloadReferenceFrameData() {
+    // Preload reference frame data for a timeframe of 180 days
+    const timeInterval = new Cesium.TimeInterval({
+      start: Cesium.JulianDate.addDays(Cesium.JulianDate.now(), -60, new Cesium.JulianDate()),
+      stop: Cesium.JulianDate.addDays(Cesium.JulianDate.now(), 120, new Cesium.JulianDate()),
+    });
+    Cesium.Transforms.preloadIcrfFixed(timeInterval).then(() => {
+      console.log("Reference frame data loaded");
+    });
+  }
+
+  get imageryProviderNames() {
+    return Object.keys(this.imageryProviders);
+  }
+
+  get baseLayers() {
+    return Object.entries(this.imageryProviders).filter(([, val]) => val.base).map(([key]) => key);
+  }
+
+  get overlayLayers() {
+    return Object.entries(this.imageryProviders).filter(([, val]) => !val.base).map(([key]) => key);
+  }
+
+  set imageryLayers(newLayerNames) {
+    this.clearImageryLayers();
+    newLayerNames.forEach((layerName) => {
+      const [name, alpha] = layerName.split("_");
+      const layer = this.createImageryLayer(name, alpha);
+      if (layer) {
+        this.viewer.scene.imageryLayers.add(layer);
+      }
+    });
+  }
+
+  clearImageryLayers() {
+    this.viewer.scene.imageryLayers.removeAll();
+  }
+
+  createImageryLayer(imageryProviderName, alpha) {
+    if (!this.imageryProviderNames.includes(imageryProviderName)) {
+      console.error("Unknown imagery layer");
+      return false;
+    }
+
+    const provider = this.imageryProviders[imageryProviderName];
+    const layer = Cesium.ImageryLayer.fromProviderAsync(provider.create());
+    if (alpha === undefined) {
+      layer.alpha = provider.alpha;
+    } else {
+      layer.alpha = alpha;
+    }
+    return layer;
   }
 
   set sceneMode(sceneMode) {
@@ -88,117 +230,6 @@ export class CesiumController {
     }
   }
 
-  set imageryProvider(imageryProviderName) {
-    if (!this.imageryProviders.includes(imageryProviderName)) {
-      return;
-    }
-
-    const layers = this.viewer.scene.imageryLayers;
-    layers.removeAll();
-    layers.addImageryProvider(this.createImageryProvider(imageryProviderName).provider);
-  }
-
-  clearImageryLayers() {
-    this.viewer.scene.imageryLayers.removeAll();
-  }
-
-  addImageryLayer(imageryProviderName, alpha) {
-    if (!this.imageryProviders.includes(imageryProviderName)) {
-      return;
-    }
-
-    const layers = this.viewer.scene.imageryLayers;
-    const imagery = this.createImageryProvider(imageryProviderName);
-    const layer = layers.addImageryProvider(imagery.provider);
-    if (typeof alpha === "undefined") {
-      layer.alpha = imagery.alpha;
-    } else {
-      layer.alpha = alpha;
-    }
-  }
-
-  createImageryProvider(imageryProviderName = "OfflineHighres") {
-    let provider;
-    let alpha = 1;
-    switch (imageryProviderName) {
-      case "Offline":
-        provider = new Cesium.TileMapServiceImageryProvider({
-          url: Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII"),
-        });
-        break;
-      case "OfflineHighres":
-        provider = new Cesium.TileMapServiceImageryProvider({
-          url: "data/cesium-assets/imagery/NaturalEarthII",
-          maximumLevel: 5,
-          credit: "Imagery courtesy Natural Earth",
-        });
-        break;
-      case "ArcGis":
-        provider = new Cesium.ArcGisMapServerImageryProvider({
-          url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
-        });
-        break;
-      case "OSM":
-        provider = new Cesium.OpenStreetMapImageryProvider({
-          url: "https://a.tile.openstreetmap.org/",
-        });
-        break;
-      case "Tiles":
-        provider = new Cesium.TileCoordinatesImageryProvider();
-        break;
-      case "BlackMarble":
-        provider = new Cesium.WebMapServiceImageryProvider({
-          url: "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi",
-          layers: "VIIRS_Black_Marble",
-          style: "default",
-          tileMatrixSetID: "250m",
-          format: "image/png",
-          tileWidth: 512,
-          tileHeight: 512,
-          credit: "NASA Global Imagery Browse Services for EOSDIS",
-        });
-        break;
-      case "GOES-IR":
-        provider = new Cesium.WebMapServiceImageryProvider({
-          url: "https://mesonet.agron.iastate.edu/cgi-bin/wms/goes/conus_ir.cgi?",
-          layers: "goes_conus_ir",
-          credit: "Infrared data courtesy Iowa Environmental Mesonet",
-          parameters: {
-            transparent: "true",
-            format: "image/png",
-          },
-        });
-        alpha = 0.5;
-        break;
-      case "Nextrad":
-        provider = new Cesium.WebMapServiceImageryProvider({
-          url: "https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi?",
-          layers: "nexrad-n0r",
-          credit: "US Radar data courtesy Iowa Environmental Mesonet",
-          parameters: {
-            transparent: "true",
-            format: "image/png",
-          },
-        });
-        alpha = 0.5;
-        break;
-      case "Meteocool":
-        provider = new Cesium.UrlTemplateImageryProvider({
-          url: "https://{s}.tileserver.unimplemented.org/data/raa01-wx_10000-latest-dwd-wgs84_transformed/{z}/{x}/{y}.png",
-          rectangle: Cesium.Rectangle.fromDegrees(2.8125, 45, 19.6875, 56.25),
-          minimumLevel: 6,
-          maximumLevel: 10,
-          credit: "DE Radar data courtesy of meteocool.com",
-          subdomains: "ab",
-        });
-        alpha = 0.5;
-        break;
-      default:
-        console.error("Unknown imagery provider");
-    }
-    return { provider, alpha };
-  }
-
   set terrainProvider(terrainProviderName) {
     if (!this.terrainProviders.includes(terrainProviderName)) {
       return;
@@ -210,7 +241,7 @@ export class CesiumController {
         break;
       case "Maptiler":
         this.viewer.terrainProvider = new Cesium.CesiumTerrainProvider({
-          url: "https://api.maptiler.com/tiles/terrain-quantized-mesh/?key=8urAyLJIrn6TeDtH0Ubh",
+          url: "https://api.maptiler.com/tiles/terrain-quantized-mesh/?key=tiHE8Ed08u6ZoFjbE32Z",
           credit: "<a href=\"https://www.maptiler.com/copyright/\" target=\"_blank\">© MapTiler</a> <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">© OpenStreetMap contributors</a>",
           requestVertexNormals: true,
         });
@@ -286,7 +317,8 @@ export class CesiumController {
   createInputHandler() {
     const handler = new Cesium.ScreenSpaceEventHandler(this.viewer.scene.canvas);
     handler.setInputAction((event) => {
-      if (!this.groundStationPicker.enabled) {
+      const { pickMode } = useCesiumStore();
+      if (!pickMode) {
         return;
       }
       this.setGroundStationFromClickEvent(event);
@@ -304,7 +336,7 @@ export class CesiumController {
       coordinates.height = Cesium.Math.toDegrees(cartographicPosition.height);
       coordinates.cartesian = cartesian;
       this.sats.setGroundStation(coordinates);
-      this.groundStationPicker.enabled = false;
+      useCesiumStore().pickMode = false;
     }
   }
 
@@ -322,18 +354,18 @@ export class CesiumController {
     });
   }
 
-  setGroundStationFromLatLon(latlon) {
-    const [latitude, longitude, height] = latlon.split(",");
-    if (!latitude || !longitude) {
+  setGroundStationFromLatLon(lat, lon, height = 0) {
+    if (!lat || !lon) {
       return;
     }
-    const coordinates = {};
-    coordinates.longitude = parseFloat(longitude);
-    coordinates.latitude = parseFloat(latitude);
-    coordinates.height = 0;
-    if (height) {
-      coordinates.height = parseFloat(height);
-    }
+    const coordinates = {
+      longitude: lon,
+      latitude: lat,
+      height,
+    };
+    coordinates.longitude = lon;
+    coordinates.latitude = lat;
+    coordinates.height = height;
     coordinates.cartesian = Cesium.Cartesian3.fromDegrees(coordinates.longitude, coordinates.latitude, coordinates.height);
     this.sats.setGroundStation(coordinates);
   }
@@ -375,15 +407,40 @@ export class CesiumController {
     }
   }
 
-  enableTransparency() {
-    this.viewer.scene.backgroundColor = Cesium.Color.TRANSPARENT;
-    this.viewer.scene.moon = undefined;
-    this.viewer.scene.skyAtmosphere = undefined;
-    this.viewer.scene.skyBox = undefined;
-    this.viewer.scene.sun = undefined;
-    document.documentElement.style.background = "transparent";
-    document.body.style.background = "transparent";
-    document.getElementById("cesiumContainer").style.background = "transparent";
+  set qualityPreset(quality) {
+    switch (quality) {
+      case "low":
+        // Ignore browser's device pixel ratio and use CSS pixels instead of device pixels for render resolution
+        this.viewer.useBrowserRecommendedResolution = true;
+        break;
+      case "high":
+        // Use browser's device pixel ratio for render resolution
+        this.viewer.useBrowserRecommendedResolution = false;
+        break;
+      default:
+        console.error("Unknown quality preset");
+    }
+  }
+
+  set showFps(value) {
+    cc.viewer.scene.debugShowFramesPerSecond = value;
+  }
+
+  set background(active) {
+    if (!active) {
+      this.viewer.scene.backgroundColor = Cesium.Color.TRANSPARENT;
+      this.viewer.scene.moon = undefined;
+      this.viewer.scene.skyAtmosphere = undefined;
+      this.viewer.scene.skyBox = undefined;
+      this.viewer.scene.sun = undefined;
+      document.documentElement.style.background = "transparent";
+      document.body.style.background = "transparent";
+      document.getElementById("cesiumContainer").style.background = "transparent";
+    }
+  }
+
+  enablePerformanceStats(logContinuously = false) {
+    this.performanceStats = new CesiumPerformanceStats(this.viewer.scene, logContinuously);
   }
 
   addErrorHandler() {
@@ -416,7 +473,7 @@ export class CesiumController {
       const notifyButton = document.createElement("button");
       notifyButton.setAttribute("type", "button");
       notifyButton.setAttribute("class", "cesium-button cesium-infoBox-custom");
-      notifyButton.innerHTML = "<i class=\"fas fa-bell\" />";
+      notifyButton.innerHTML = icon(faBell).html;
       notifyButton.addEventListener("click", () => {
         if (this.sats.selectedSatellite) {
           this.sats.getSatellite(this.sats.selectedSatellite).props.notifyPasses();
@@ -432,7 +489,7 @@ export class CesiumController {
       const infoButton = document.createElement("button");
       infoButton.setAttribute("type", "button");
       infoButton.setAttribute("class", "cesium-button cesium-infoBox-custom");
-      infoButton.innerHTML = "<i class=\"fas fa-info\" />";
+      infoButton.innerHTML = icon(faInfo).html;
       infoButton.addEventListener("click", () => {
         if (!this.sats.selectedSatellite) {
           return;

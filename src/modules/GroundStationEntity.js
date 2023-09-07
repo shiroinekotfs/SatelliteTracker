@@ -1,11 +1,11 @@
-import * as Cesium from "Cesium/Cesium";
+import * as Cesium from "@cesium/engine";
 import dayjs from "dayjs";
-import { CesiumEntityWrapper } from "./CesiumEntityWrapper";
-import { DescriptionHelper } from "./DescriptionHelper";
+import { CesiumComponentCollection } from "./util/CesiumComponentCollection";
+import { DescriptionHelper } from "./util/DescriptionHelper";
 
-import icon from "../assets/images/icons/dish.svg";
+import icon from "../images/icons/dish.svg";
 
-export class GroundStationEntity extends CesiumEntityWrapper {
+export class GroundStationEntity extends CesiumComponentCollection {
   constructor(viewer, sats, position) {
     super(viewer);
     this.sats = sats;
@@ -19,16 +19,6 @@ export class GroundStationEntity extends CesiumEntityWrapper {
   createEntities() {
     this.createDescription();
     this.createGroundStation();
-
-    this.viewer.selectedEntityChanged.addEventListener(() => {
-      if (this.isSelected) {
-        this.setSelectedOnTickCallback((clock) => {
-          this.sats.enabledSatellites.forEach((sat) => {
-            sat.props.updatePasses(clock.currentTime);
-          });
-        });
-      }
-    });
   }
 
   createGroundStation() {
@@ -36,26 +26,24 @@ export class GroundStationEntity extends CesiumEntityWrapper {
       image: icon,
       horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-      width: 24,
-      height: 24,
+      scaleByDistance: new Cesium.NearFarScalar(1e2, 0.2, 4e7, 0.1),
     });
     this.createCesiumEntity("Groundstation", "billboard", billboard, this.name, this.description, this.position.cartesian, false);
-    this.defaultEntity = this.entities.Groundstation;
   }
 
   createDescription() {
-    const description = new Cesium.CallbackProperty((time) => {
+    this.description = DescriptionHelper.cachedCallbackProperty((time) => {
       const passes = this.passes(time);
       const content = DescriptionHelper.renderDescription(time, this.name, this.position, passes, true);
       return content;
-    }, false);
-    this.description = description;
+    });
   }
 
   passes(time, deltaHours = 48) {
     let passes = [];
-    // Aggregate passes from all enabled satellites
-    this.sats.enabledSatellites.forEach((sat) => {
+    // Aggregate passes from all visible satellites
+    this.sats.visibleSatellites.forEach((sat) => {
+      sat.props.updatePasses(this.viewer.clock.currentTime);
       passes.push(...sat.props.passes);
     });
 

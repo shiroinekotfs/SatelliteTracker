@@ -1,41 +1,50 @@
-import { SatelliteEntityWrapper } from "./SatelliteEntityWrapper";
+import { SatelliteComponentCollection } from "./SatelliteComponentCollection";
 import { GroundStationEntity } from "./GroundStationEntity";
-/* global app */
+
+import { useSatStore } from "../stores/sat";
+import { CesiumCleanupHelper } from "./util/CesiumCleanupHelper";
 
 export class SatelliteManager {
+  #enabledComponents = ["Point", "Label"];
+
+  #enabledTags = [];
+
+  #enabledSatellites = [];
+
   constructor(viewer) {
     this.viewer = viewer;
 
     this.satellites = [];
-    this.enabledComponents = ["Point", "Label"];
-    this.enabledTags = [];
+    this.availableComponents = ["Point", "Label", "Orbit", "Orbit track", "Ground track", "Sensor cone", "3D model"];
 
     this.viewer.trackedEntityChanged.addEventListener(() => {
-      const trackedSatelliteName = this.trackedSatellite;
-      if (trackedSatelliteName) {
-        this.getSatellite(trackedSatelliteName).show(this.enabledComponents);
+      if (this.trackedSatellite) {
+        this.getSatellite(this.trackedSatellite).show(this.#enabledComponents);
       }
-      if ("app" in window) {
-        app.$emit("updateTracked");
-      }
+      useSatStore().trackedSatellite = this.trackedSatellite;
     });
   }
 
-  addFromTleUrl(url, tags) {
-    fetch(url, {
+  addFromTleUrls(urlTagList) {
+    // Initiate async download of all TLE URLs and update store afterwards
+    const promises = urlTagList.map(([url, tags]) => this.addFromTleUrl(url, tags, false));
+    Promise.all(promises).then(() => this.updateStore());
+  }
+
+  addFromTleUrl(url, tags, updateStore = true) {
+    return fetch(url, {
       mode: "no-cors",
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw Error(response.statusText);
-        }
-        return response;
-      }).then((response) => response.text())
+    }).then((response) => {
+      if (!response.ok) {
+        throw Error(response.statusText);
+      }
+      return response;
+    }).then((response) => response.text())
       .then((data) => {
         const lines = data.split(/\r?\n/);
         for (let i = 3; i < lines.length; i + 3) {
           const tle = lines.splice(i - 3, i).join("\n");
-          this.addFromTle(tle, tags);
+          this.addFromTle(tle, tags, updateStore);
         }
       })
       .catch((error) => {
@@ -43,17 +52,20 @@ export class SatelliteManager {
       });
   }
 
-  addFromTle(tle, tags) {
-    const sat = new SatelliteEntityWrapper(this.viewer, tle, tags);
-    this.add(sat);
+  addFromTle(tle, tags, updateStore = true) {
+    const sat = new SatelliteComponentCollection(this.viewer, tle, tags);
+    this.#add(sat);
+    if (updateStore) {
+      this.updateStore();
+    }
   }
 
-  add(newSat) {
+  #add(newSat) {
     const existingSat = this.satellites.find((sat) => sat.props.satnum === newSat.props.satnum && sat.props.name === newSat.props.name);
     if (existingSat) {
       existingSat.props.addTags(newSat.props.tags);
-      if (newSat.props.tags.some((tag) => this.enabledTags.includes(tag))) {
-        existingSat.show(this.enabledComponents);
+      if (newSat.props.tags.some((tag) => this.#enabledTags.includes(tag))) {
+        existingSat.show(this.#enabledComponents);
       }
       return;
     }
@@ -62,12 +74,18 @@ export class SatelliteManager {
     }
     this.satellites.push(newSat);
 
-    if (newSat.props.tags.some((tag) => this.enabledTags.includes(tag))) {
-      newSat.show(this.enabledComponents);
+    if (this.satIsActive(newSat)) {
+      newSat.show(this.#enabledComponents);
       if (this.pendingTrackedSatellite === newSat.props.name) {
         this.trackedSatellite = newSat.props.name;
       }
     }
+  }
+
+  updateStore() {
+    const satStore = useSatStore();
+    satStore.availableTags = this.tags;
+    satStore.availableSatellitesByTag = this.taglist;
   }
 
   get taglist() {
@@ -81,17 +99,6 @@ export class SatelliteManager {
       tag.sort();
     });
     return taglist;
-  }
-
-  get satlist() {
-    let satlist = Object.keys(this.taglist).sort().map((tag) => ({
-      name: tag,
-      list: this.taglist[tag],
-    }));
-    if (satlist.length === 0) {
-      satlist = [{ name: "", list: [] }];
-    }
-    return satlist;
   }
 
   get selectedSatellite() {
@@ -110,7 +117,8 @@ export class SatelliteManager {
         this.viewer.trackedEntity = undefined;
       }
       return;
-    } if (name === this.trackedSatellite) {
+    }
+    if (name === this.trackedSatellite) {
       return;
     }
 
@@ -124,22 +132,8 @@ export class SatelliteManager {
     }
   }
 
-  get enabledSatellites() {
-    return this.satellites.filter((sat) => sat.enabled);
-  }
-
-  get enabledSatellitesByName() {
-    return this.enabledSatellites.map((sat) => sat.props.name);
-  }
-
-  set enabledSatellitesByName(sats) {
-    this.satellites.forEach((sat) => {
-      if (sats.includes(sat.props.name)) {
-        sat.show(this.enabledComponents);
-      } else {
-        sat.hide();
-      }
-    });
+  get visibleSatellites() {
+    return this.satellites.filter((sat) => sat.created);
   }
 
   get monitoredSatellites() {
@@ -164,6 +158,18 @@ export class SatelliteManager {
     return this.satellites.find((sat) => sat.props.name === name);
   }
 
+  get enabledSatellites() {
+    return this.#enabledSatellites;
+  }
+
+  set enabledSatellites(newSats) {
+    this.#enabledSatellites = newSats;
+    this.showEnabledSatellites();
+
+    const satStore = useSatStore();
+    satStore.enabledSatellites = newSats;
+  }
+
   get tags() {
     const tags = this.satellites.map((sat) => sat.props.tags);
     return [...new Set([].concat(...tags))];
@@ -173,24 +179,44 @@ export class SatelliteManager {
     return this.satellites.filter((sat) => sat.props.hasTag(tag));
   }
 
-  showSatsWithEnabledTags() {
+  /**
+   * Returns true if the satellite is enabled by tag or name
+   * @param {SatelliteComponentCollection} sat
+   * @returns {boolean} true if the satellite is enabled
+   */
+  satIsActive(sat) {
+    const enabledByTag = this.#enabledTags.some((tag) => sat.props.hasTag(tag));
+    const enabledByName = this.#enabledSatellites.includes(sat.props.name);
+    return enabledByTag || enabledByName;
+  }
+
+  get activeSatellites() {
+    return this.satellites.filter((sat) => this.satIsActive(sat));
+  }
+
+  showEnabledSatellites() {
     this.satellites.forEach((sat) => {
-      if (this.enabledTags.some((tag) => sat.props.hasTag(tag))) {
-        sat.show(this.enabledComponents);
+      if (this.satIsActive(sat)) {
+        sat.show(this.#enabledComponents);
       } else {
         sat.hide();
       }
     });
+    if (this.visibleSatellites.length === 0) {
+      CesiumCleanupHelper.cleanup(this.viewer);
+    }
   }
 
-  enableTag(tag) {
-    this.enabledTags = [...new Set(this.enabledTags.concat(tag))];
-    this.showSatsWithEnabledTags();
+  get enabledTags() {
+    return this.#enabledTags;
   }
 
-  disableTag(tag) {
-    this.enabledTags = this.enabledTags.filter((enabledTag) => enabledTag !== tag);
-    this.showSatsWithEnabledTags();
+  set enabledTags(newTags) {
+    this.#enabledTags = newTags;
+    this.showEnabledSatellites();
+
+    const satStore = useSatStore();
+    satStore.enabledTags = newTags;
   }
 
   get components() {
@@ -198,20 +224,36 @@ export class SatelliteManager {
     return [...new Set([].concat(...components))];
   }
 
-  enableComponent(componentName) {
-    const index = this.enabledComponents.indexOf(componentName);
-    if (index === -1) this.enabledComponents.push(componentName);
+  get enabledComponents() {
+    return this.#enabledComponents;
+  }
 
-    this.enabledSatellites.forEach((sat) => {
+  set enabledComponents(newComponents) {
+    const oldComponents = this.#enabledComponents;
+    const add = newComponents.filter((x) => !oldComponents.includes(x));
+    const del = oldComponents.filter((x) => !newComponents.includes(x));
+    add.forEach((component) => {
+      this.enableComponent(component);
+    });
+    del.forEach((component) => {
+      this.disableComponent(component);
+    });
+  }
+
+  enableComponent(componentName) {
+    if (!this.#enabledComponents.includes(componentName)) {
+      this.#enabledComponents.push(componentName);
+    }
+
+    this.activeSatellites.forEach((sat) => {
       sat.enableComponent(componentName);
     });
   }
 
   disableComponent(componentName) {
-    const index = this.enabledComponents.indexOf(componentName);
-    if (index !== -1) this.enabledComponents.splice(index, 1);
+    this.#enabledComponents = this.#enabledComponents.filter((name) => name !== componentName);
 
-    this.enabledSatellites.forEach((sat) => {
+    this.activeSatellites.forEach((sat) => {
       sat.disableComponent(componentName);
     });
   }
@@ -243,11 +285,8 @@ export class SatelliteManager {
       sat.groundStation = this.groundStation.position;
     });
 
-    if ("app" in window) {
-      const latlon = `${position.latitude.toFixed(4)},${position.longitude.toFixed(4)}`;
-      if (app.$route.query.gs !== latlon) {
-        app.$router.push({ query: { ...app.$route.query, gs: latlon } });
-      }
-    }
+    // Update store for url state
+    const satStore = useSatStore();
+    satStore.groundstation = [position.latitude, position.longitude];
   }
 }

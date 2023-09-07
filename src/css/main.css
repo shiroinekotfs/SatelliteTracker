@@ -1,3 +1,6 @@
+@import "./oruga.css";
+@import "vue-toastification/dist/index.css";
+
 html, body, #cesiumContainer {
     width: 100%;
     height: 100%;
@@ -84,34 +87,35 @@ input:checked + .slider::before {
     transform: translateX(20px);
 }
 
-.fill-parent {
-    width: 100%;
-    height: 100%;
+.cesium-toolbar-button {
+    font-size: 22px;
+    color: #ffffff;
 }
 
-.cesium-toolbar-button .icon {
-    filter: brightness(1.1);
+a.cesium-toolbar-button {
+    align-items: center;
+    justify-content: center;
+    display: inline-flex;
 }
 
-.icon .mfa-button-width {
-    width: 24px;
+.icon {
+    display: inherit;
+    vertical-align: middle;
+    width: 22px;
+    height: 22px;
 }
 
 .svg-sat {
-    background-image: url("../assets/images/icons/sat/2.svg");
-    background-repeat: no-repeat;
-    width: 24px;
-    height: 24px;
+    background: url("../images/icons/sat/2.svg") no-repeat;
     filter: brightness(3.1);
     transform: rotate(-90deg);
+    margin-bottom: 2px;
 }
 
 .svg-groundstation {
-    background-image: url("../assets/images/icons/sat/9.svg");
-    background-repeat: no-repeat;
-    width: 24px;
-    height: 24px;
+    background: url("../images/icons/sat/9.svg") no-repeat;
     filter: brightness(3.1);
+    margin-bottom: 2px;
     margin-left: 2px;
 }
 

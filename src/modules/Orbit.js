@@ -2,7 +2,7 @@ import * as satellitejs from "satellite.js";
 import dayjs from "dayjs";
 
 const deg2rad = Math.PI / 180;
-// const rad2deg = 180 / Math.PI;
+const rad2deg = 180 / Math.PI;
 
 export default class Orbit {
   constructor(name, tle) {
@@ -13,6 +13,10 @@ export default class Orbit {
 
   get satnum() {
     return this.satrec.satnum;
+  }
+
+  get error() {
+    return this.satrec.error;
   }
 
   get orbitalPeriod() {
@@ -32,35 +36,20 @@ export default class Orbit {
     return positionEcf;
   }
 
-  positionGeodetic(time) {
-    const positionEci = this.positionECI(time);
-    const gmst = satellitejs.gstime(time);
-    const positionGd = satellitejs.eciToGeodetic(positionEci, gmst);
-
-    return {
-      longitude: positionGd.longitude,
-      latitude: positionGd.latitude,
-      height: positionGd.height * 1000,
-    };
-  }
-
-  positionGeodeticWithVelocity(timestamp) {
-    const positionAndVelocity = satellitejs.propagate(this.satrec, timestamp);
-    const positionEci = positionAndVelocity.position;
-    const velocityEci = positionAndVelocity.velocity;
-
+  positionGeodetic(timestamp, calculateVelocity = false) {
+    const { position: positionEci, velocity: velocityVector } = satellitejs.propagate(this.satrec, timestamp);
     const gmst = satellitejs.gstime(timestamp);
     const positionGd = satellitejs.eciToGeodetic(positionEci, gmst);
 
-    const velocity = Math.sqrt(velocityEci.x * velocityEci.x +
-      velocityEci.y * velocityEci.y +
-      velocityEci.z * velocityEci.z);
-
     return {
-      longitude: positionGd.longitude,
-      latitude: positionGd.latitude,
+      longitude: positionGd.longitude * rad2deg,
+      latitude: positionGd.latitude * rad2deg,
       height: positionGd.height * 1000,
-      velocity,
+      ...(calculateVelocity && {
+        velocity: Math.sqrt(velocityVector.x * velocityVector.x +
+          velocityVector.y * velocityVector.y +
+          velocityVector.z * velocityVector.z),
+      }),
     };
   }
 
