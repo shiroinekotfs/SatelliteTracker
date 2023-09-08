@@ -1,10 +1,8 @@
-# [SatelliteTracker.space](https://SatelliteTracker.space) 
+# SatelliteTracker
 
-![Node CI](https://github.com/Flowm/SatelliteTracker/workflows/Node%20CI/badge.svg)
+[![CodeQL](https://github.com/takinekotfs/SatelliteTracker/actions/workflows/codeql.yml/badge.svg)](https://github.com/takinekotfs/SatelliteTracker/actions/workflows/codeql.yml)
 
-Satellite orbit visualization and pass prediction.
-
-![Screenshot](https://user-images.githubusercontent.com/1117666/47623704-f0c3e900-db14-11e8-9cf9-7bf13acb267c.png)
+Satellite Tracker - visualization and pass prediction.
 
 ## Features
 
@@ -15,13 +13,6 @@ Satellite orbit visualization and pass prediction.
 - Serverless architecture
 - Works offline as Progressive Web App (PWA)
 
-## Built With
-
-- [CesiumJS](https://cesiumjs.org)
-- [Satellite.js](https://github.com/shashwatak/satellite-js)
-- [Vue.js](https://vuejs.org)
-- [Workbox](https://developers.google.com/web/tools/workbox)
-
 ## Development
 
 ### Setup
@@ -30,7 +21,7 @@ Initialize submodules and install npm build dependencies:
 
 ```shell
 git submodule update --init
-npm clean-install
+npm ci
 ```
 
 ### Run
