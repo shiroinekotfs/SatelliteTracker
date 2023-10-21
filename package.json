@@ -30,7 +30,7 @@
     "@sentry/browser": "^7.68.0",
     "cesium": "^1.107.0",
     "cesium-sensor-volumes": "github:Flowm/cesium-sensor-volumes#1.102.0",
-    "dayjs": "^1.11.9",
+    "dayjs": "^1.11.10",
     "pinia": "^2.1.4",
     "satellite.js": "^5.0.0",
     "vue": "^3.3.4",
