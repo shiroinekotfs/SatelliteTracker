@@ -43,7 +43,7 @@
     "@babel/core": "^7.22.6",
     "@babel/eslint-parser": "^7.22.6",
     "@babel/preset-env": "^7.22.6",
-    "@babel/preset-typescript": "^7.22.5",
+    "@babel/preset-typescript": "^7.23.2",
     "autoprefixer": "^10.4.14",
     "babel-loader": "^9.1.2",
     "copy-webpack-plugin": "^11.0.0",
