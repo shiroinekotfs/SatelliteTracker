@@ -18,7 +18,7 @@
     "update-custom-data": "npm run update-tle && bash data/custom/update-custom-data.sh",
     "update-all-packages": "npm install"
   },
-  "author": "Tsuki Takineko (ft. Florian Mauracher)",
+  "author": "Shiroi Neko (ft. Florian Mauracher)",
   "private": true,
   "license": "MIT",
   "dependencies": {
