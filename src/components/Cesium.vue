@@ -206,7 +206,7 @@
     </div>
     <div id="toolbarRight">
       <b-tooltip v-if="showUI" label="Github" :triggers="tooltipTriggers" position="is-left">
-        <a class="cesium-button cesium-toolbar-button" href="https://github.com/shiroinekotfs/SatelliteTracker/" target="_blank" rel="noopener">
+        <a class="cesium-button cesium-toolbar-button" href="https://github.com/takinekotfs/SatelliteTracker/" target="_blank" rel="noopener">
           <span class="icon fill-parent">
             <i class="fab fa-github fa-fw mfa-button-width"></i>
           </span>
