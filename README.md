@@ -26,6 +26,14 @@ npm ci
 
 ### Run
 
+#### Run from Docker
+
+```shell
+docker run -p 8080:8080 shiroinekotfs/satellitetracker:latest
+```
+
+#### Locally
+
 - `npm run start` for the dev server
 - `npm run build` to build the application (output in `dist` folder)
 - `npm run serve` to build the application and serve with static webserver
