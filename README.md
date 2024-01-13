@@ -1,6 +1,6 @@
 # SatelliteTracker
 
-[![CodeQL](https://github.com/takinekotfs/SatelliteTracker/actions/workflows/codeql.yml/badge.svg)](https://github.com/takinekotfs/SatelliteTracker/actions/workflows/codeql.yml)
+[![CodeQL](https://github.com/shiroinekotfs/SatelliteTracker/actions/workflows/codeql.yml/badge.svg)](https://github.com/shiroinekotfs/SatelliteTracker/actions/workflows/codeql.yml)
 
 Satellite Tracker - visualization and pass prediction.
 

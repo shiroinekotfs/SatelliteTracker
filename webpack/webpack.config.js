@@ -180,10 +180,6 @@ module.exports = {
                     }
                 },
                 {
-                    from: "data/custom/dist",
-                    to: "data"
-                },
-                {
                     from: "src/assets"
                 },
             ],

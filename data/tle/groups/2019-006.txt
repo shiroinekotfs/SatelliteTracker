@@ -1,1 +1,1 @@
-GROUP "2019-006" does not exist
+Invalid query: "GROUP=2019-006&FORMAT=tle" (GROUP=2019-006 not found)
