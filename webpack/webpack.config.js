@@ -44,7 +44,7 @@ module.exports = {
             },
         },
         hot: true,
-        port: 8080,
+        port: 80,
         static: {
             directory: path.resolve(basePath, "dist"),
         },
